@@ -73,17 +73,20 @@ public partial class FrmMain : Form {
     }
   }
 
-  private void menuFileOpen_Click(object sender, EventArgs e) {
-    ofdLoadFile.DefaultExt = "wav";
-    if (ofdLoadFile.ShowDialog() == DialogResult.OK) {
-      Track newTrack = new(ofdLoadFile.FileName);
-      CreateTrackPanel(newTrack);
-      trackManager.AddTrack(newTrack);
-      UpdateSizes();
-      newTrack.PanDrawSamples.Invalidate();
+    private void menuFileOpen_Click(object sender, EventArgs e) {
+        ofdLoadFile.DefaultExt = "wav";
+        ofdLoadFile.Multiselect = true;
+        if (ofdLoadFile.ShowDialog() == DialogResult.OK) {
+            foreach (string file in ofdLoadFile.FileNames) { // iterate through array of selected files
+                Track newTrack = new(file);
+                CreateTrackPanel(newTrack);
+                trackManager.AddTrack(newTrack);
+                UpdateSizes();
+                newTrack.PanDrawSamples.Invalidate();
+            }
+        }
     }
-  }
-  private void menuFileSave_Click(object sender, EventArgs e) {
+    private void menuFileSave_Click(object sender, EventArgs e) {
     sfdSaveFile.DefaultExt = "wav";
     if (sfdSaveFile.ShowDialog() == DialogResult.OK) {
       trackManager.SaveToFile(sfdSaveFile.FileName);
