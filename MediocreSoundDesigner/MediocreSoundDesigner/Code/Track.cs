@@ -32,6 +32,9 @@ public class Track : IDisposable {
     public float Volume { get; private set; }
     private string tempFilePath => Path.Combine(Path.GetTempPath(), "MediocreSoundDesigner", "temp.wav");
     public PlaybackState State => outputDevice?.PlaybackState ?? PlaybackState.Stopped;
+    public int? SelectionStartSample { get; set; } = null;
+    public int? SelectionEndSample { get; set; } = null;
+    public bool HasSelection => SelectionStartSample.HasValue && SelectionEndSample.HasValue;
 
     // ctor
     public Track(string file) {
@@ -74,23 +77,38 @@ public class Track : IDisposable {
     }
 
     // edits
+    public (int, int) GetTargetRange()
+    {
+        if (HasSelection)
+        {
+            return (SelectionStartSample.Value, SelectionEndSample.Value);
+        }
+        return (0, samples.Length);
+    }
+    public void ClearSelection()
+    {
+        SelectionStartSample = null;
+        SelectionEndSample = null;
+    }
+    public void SetSelection(int startSample, int endSample)
+    {
+        int start = Math.Clamp(Math.Min(startSample, endSample), 0, samples.Length);
+        int end = Math.Clamp(Math.Max(startSample, endSample), 0, samples.Length);
+        if (start == end)
+        {
+            ClearSelection();
+        }
+        else
+        {
+            SelectionStartSample = start;
+            SelectionEndSample = end;
+        }
+    }
     public float[] CloneSamples() {
     return (float[])samples.Clone();
     }
     public void ReplaceSamples(float[] samples) {
     this.samples = samples;
-    }
-    public void Reverse() {
-    for (int i = 0; i < samples.Length / 2; i++) {
-        var temp = samples[i];
-        samples[i] = samples[samples.Length - 1 - i];
-        samples[samples.Length - 1 - i] = temp;
-    }
-    }
-    public void Flip() {
-    for (int i = 0; i < samples.Length; i++) {
-        samples[i] *= -1;
-    }
     }
     public void Trim() {
     }
@@ -99,58 +117,112 @@ public class Track : IDisposable {
     public void SetVolume(float newVolume) {
     Volume = newVolume;
     }
-    public void EliminateSilence(SampleRegion region, float minDuration, float thres) {
-    float[] newSamples = CloneSamples();
-    if (region is SampleRegion.BEGINNING_ONLY or SampleRegion.BEGINNING_AND_END) {
-        int silentDurationInNumSamples = 0;
-        for (int i = 0; i < newSamples.Length; i++) {
-        if (Math.Abs(newSamples[i]) <= thres) {
-            silentDurationInNumSamples++;
-        }
-        else {
-            break;
-        }
-        }
-        if ((float)silentDurationInNumSamples / sampleRate >= minDuration) {
-        newSamples = newSamples[silentDurationInNumSamples..];
+    public void Flip()
+    {
+        var (start, end) = GetTargetRange();
+        for (int i = start; i < end; i++)
+        {
+            samples[i] *= -1;
         }
     }
-    if (region is SampleRegion.END_ONLY or SampleRegion.BEGINNING_AND_END) {
-        int silentDurationInNumSamples = 0;
-        for (int i = newSamples.Length - 1; i >= 0; i--) {
-        if (Math.Abs(newSamples[i]) <= thres) {
-            silentDurationInNumSamples++;
-        }
-        else {
-            break;
-        }
-        }
-        if ((float)silentDurationInNumSamples / sampleRate >= minDuration) {
-        newSamples = newSamples[0..^silentDurationInNumSamples];
+
+    public void Reverse()
+    {
+        var (start, end) = GetTargetRange();
+        int len = end - start;
+        for (int i = 0; i < len / 2; i++)
+        {
+            var temp = samples[start + i];
+            samples[start + i] = samples[end - 1 - i];
+            samples[end - 1 - i] = temp;
         }
     }
-    if (region is SampleRegion.ANYWHERE) {
-        int silentDurationInNumSamples = 0;
-        int silentRegionStart = 0;
-        int i;
-        for (i = 0; i < newSamples.Length; i++) {
-        if (Math.Abs(newSamples[i]) <= thres) {
-            silentDurationInNumSamples++;
+
+    public void ApplyVolume(float factor)
+    {
+        var (start, end) = GetTargetRange();
+        for (int i = start; i < end; i++)
+        {
+            samples[i] *= factor;
         }
-        else {
-            if ((float)silentDurationInNumSamples / sampleRate >= minDuration) {
-            newSamples = [..newSamples[0..silentRegionStart], ..newSamples[i..]];
-            i = 0;
+    }
+
+    public void EliminateSilence(SampleRegion region, float minDuration, float thres)
+    {
+        var (start, end) = GetTargetRange();
+        float[] targetSlice = samples[start..end];
+
+        if (region is SampleRegion.BEGINNING_ONLY or SampleRegion.BEGINNING_AND_END)
+        {
+            int silentDurationInNumSamples = 0;
+            for (int i = 0; i < targetSlice.Length; i++)
+            {
+                if (Math.Abs(targetSlice[i]) <= thres)
+                {
+                    silentDurationInNumSamples++;
+                }
+                else
+                {
+                    break;
+                }
             }
-            silentRegionStart = i + 1;
-            silentDurationInNumSamples = 0;
+            if ((float)silentDurationInNumSamples / sampleRate >= minDuration)
+            {
+                targetSlice = targetSlice[silentDurationInNumSamples..];
+            }
         }
+
+        if (region is SampleRegion.END_ONLY or SampleRegion.BEGINNING_AND_END)
+        {
+            int silentDurationInNumSamples = 0;
+            for (int i = targetSlice.Length - 1; i >= 0; i--)
+            {
+                if (Math.Abs(targetSlice[i]) <= thres)
+                {
+                    silentDurationInNumSamples++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if ((float)silentDurationInNumSamples / sampleRate >= minDuration)
+            {
+                targetSlice = targetSlice[0..^silentDurationInNumSamples];
+            }
         }
-        if ((float)silentDurationInNumSamples / sampleRate >= minDuration) {
-        newSamples = [.. newSamples[0..silentRegionStart], .. newSamples[i..]];
+
+        if (region is SampleRegion.ANYWHERE)
+        {
+            int silentDurationInNumSamples = 0;
+            int silentRegionStart = 0;
+            int i;
+            for (i = 0; i < targetSlice.Length; i++)
+            {
+                if (Math.Abs(targetSlice[i]) <= thres)
+                {
+                    silentDurationInNumSamples++;
+                }
+                else
+                {
+                    if ((float)silentDurationInNumSamples / sampleRate >= minDuration)
+                    {
+                        targetSlice = [.. targetSlice[0..silentRegionStart], .. targetSlice[i..]];
+                        i = 0;
+                    }
+                    silentRegionStart = i + 1;
+                    silentDurationInNumSamples = 0;
+                }
+            }
+            if ((float)silentDurationInNumSamples / sampleRate >= minDuration)
+            {
+                targetSlice = [.. targetSlice[0..silentRegionStart], .. targetSlice[i..]];
+            }
         }
-    }
-    samples = newSamples;
+
+        // Splice altered slice back into track buffer
+        samples = [.. samples[0..start], .. targetSlice, .. samples[end..]];
+        ClearSelection();
     }
 
     // play
@@ -206,26 +278,53 @@ public class Track : IDisposable {
     DrawOffset += amount;
     DrawOffset = Math.Max(0, DrawOffset);
     }
-    public void DrawSamples(Graphics g, int drawTimescale) {
-    if (PanDrawSamples is null) {
-        return;
-    }
-
-    this.drawTimescale = drawTimescale;
-    float heightAdj = PanDrawSamples.Height / 2;
-    if (samples != null && samples.Length > 0) {
-        int x = DrawOffset;
-        Pen pen = new(IsDisabled ? Settings.Color.TrackSamples_Disabled : Settings.Color.TrackSamples_Enabled);
-        List<Point> points = new();
-        for (int s = 0; s < samples.Length; s += drawTimescale) {
-        var sample = (int)(samples[s] * heightAdj * Volume);
-        points.Add(new(x, PanDrawSamples.Height / 2));
-        points.Add(new(x, PanDrawSamples.Height / 2 - sample));
-        x++;
+    public void DrawSamples(Graphics g, int drawTimescale, int? selStartX = null, int? selEndX = null)
+    {
+        if (PanDrawSamples is null)
+        {
+            return;
         }
-        g.DrawLines(pen, points.ToArray());
-        pen.Dispose();
-    }
+
+        this.drawTimescale = drawTimescale;
+        int height = PanDrawSamples.Height;
+
+        // 1. Draw Waveform
+        float heightAdj = height / 2f;
+        if (samples != null && samples.Length > 0)
+        {
+            int x = DrawOffset;
+            using Pen wavePen = new(IsDisabled ? Settings.Color.TrackSamples_Disabled : Settings.Color.TrackSamples_Enabled);
+            List<Point> points = new();
+            for (int s = 0; s < samples.Length; s += drawTimescale)
+            {
+                var sample = (int)(samples[s] * heightAdj * Volume);
+                points.Add(new(x, height / 2));
+                points.Add(new(x, height / 2 - sample));
+                x++;
+            }
+            g.DrawLines(wavePen, points.ToArray());
+        }
+
+        // 2. Draw Unified Selection Box across the track
+        if (selStartX.HasValue && selEndX.HasValue && selStartX.Value != selEndX.Value)
+        {
+            int startX = selStartX.Value;
+            int endX = selEndX.Value;
+            int width = Math.Max(1, endX - startX);
+
+            using (SolidBrush fillBrush = new(Settings.Color.TrackSelection))
+            {
+                g.FillRectangle(fillBrush, startX, 0, width, height);
+            }
+
+            using (Pen borderPen = new(Color.White, 1.5f))
+            {
+                g.DrawLine(borderPen, startX, 0, endX, 0);
+                g.DrawLine(borderPen, startX, height - 1, endX, height - 1);
+                g.DrawLine(borderPen, startX, 0, startX, height);
+                g.DrawLine(borderPen, endX, 0, endX, height);
+            }
+        }
     }
 
     // dispose

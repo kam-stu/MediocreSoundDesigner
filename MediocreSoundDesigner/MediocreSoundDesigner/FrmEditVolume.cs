@@ -1,16 +1,35 @@
 ﻿namespace MediocreSoundDesigner;
 
-public partial class FrmEditVolume : FrmEditMaster {
-  public FrmEditVolume() {
-    InitializeComponent();
-  }
+public partial class FrmEditVolume : FrmEditMaster
+{
+    public List<Track> SelectedTracks { get; set; } = new();
 
-  protected override void Init() {
-    base.Init();
-    nudVolume.Value = (decimal)(track.Volume * 100.0f);
-  }
+    public FrmEditVolume()
+    {
+        InitializeComponent();
+    }
 
-  protected override void Apply() {
-    track.SetVolume((float)nudVolume.Value / 100.0f);
-  }
+    protected override void Init()
+    {
+        base.Init();
+        nudVolume.Value = 100;
+    }
+
+    protected override void Apply()
+    {
+        float factor = (float)nudVolume.Value / 100.0f;
+        if (SelectedTracks.Count > 0)
+        {
+            foreach (Track t in SelectedTracks)
+            {
+                t.ApplyVolume(factor);
+                t.PanDrawSamples?.Invalidate();
+            }
+        }
+        else
+        {
+            track?.ApplyVolume(factor);
+            track?.PanDrawSamples?.Invalidate();
+        }
+    }
 }
