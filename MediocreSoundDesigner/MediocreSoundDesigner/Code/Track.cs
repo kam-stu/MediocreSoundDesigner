@@ -68,7 +68,7 @@ public class Track : IDisposable {
     this.pitch = 1.0f;
     this.bits = 32;
     this.channels = 1;
-    this.sampleRate = 0;
+    this.sampleRate = 44100;
     IsDisabled = false;
     }
     public void LinkPanels(Panel panDrawSamples, Panel panContainer) {
@@ -248,15 +248,17 @@ public class Track : IDisposable {
     }
 
     // file i/o
-    private void SaveToTempFile() {
-    Directory.CreateDirectory(Path.GetDirectoryName(tempFilePath));
-    using var writer = new WaveFileWriter(tempFilePath, fileReader?.WaveFormat ?? new());
-    writer.WriteSamples(GetAdjustedSamples(), 0, samples.Length);
+    private void SaveToTempFile()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(tempFilePath));
+        using var writer = new WaveFileWriter(tempFilePath, fileReader?.WaveFormat ?? new WaveFormat(44100, 16, 1));
+        writer.WriteSamples(GetAdjustedSamples(), 0, samples.Length);
     }
-    public void SaveToFile(string path) {
-    Directory.CreateDirectory(Path.GetDirectoryName(path));
-    using var writer = new WaveFileWriter(path, fileReader?.WaveFormat ?? new());
-    writer.WriteSamples(GetAdjustedSamples(), 0, samples.Length);
+    public void SaveToFile(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using var writer = new WaveFileWriter(path, fileReader?.WaveFormat ?? new WaveFormat(44100, 16, 1));
+        writer.WriteSamples(GetAdjustedSamples(), 0, samples.Length);
     }
     public float[] GetAdjustedSamples() {
     float[] adjSamples = new float[samples.Length];
