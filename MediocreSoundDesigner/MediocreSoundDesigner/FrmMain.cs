@@ -76,6 +76,8 @@ public partial class FrmMain : Form {
     private void menuFileOpen_Click(object sender, EventArgs e) {
         ofdLoadFile.DefaultExt = "wav";
         ofdLoadFile.Multiselect = true;
+        // applies optional filter types in file explorer, Audio Files (both wav and mp3), MP3 Audio, WAV Audio
+        ofdLoadFile.Filter = "Audio Files (*.mp3;*.wav)|*.mp3;*.wav|" + "MP3 Audio (*.mp3)|*.mp3|" + "WAV Audio (*.wav)|*.wav";
         if (ofdLoadFile.ShowDialog() == DialogResult.OK) {
             foreach (string file in ofdLoadFile.FileNames) { // iterate through array of selected files
                 Track newTrack = new(file);
