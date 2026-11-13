@@ -849,11 +849,14 @@ public partial class FrmMain : Form
         {
             Text = string.IsNullOrWhiteSpace(fileName) ? $"Track {trackManager.TrackCounter}" : fileName,
             AutoSize = true,
-            Location = new Point(160, 6),
+            Location = new Point(160, bttnMute.Top),
             Font = new Font("Segoe UI", 20, FontStyle.Bold),
             ForeColor = Settings.Color.WinFg,
-            BackColor = Color.Transparent // lets the playline show behind the track name
+            BackColor = Color.Transparent, // lets the playline show behind the track name
+            TextAlign = ContentAlignment.MiddleLeft
         };
+        lblTrackName.DpiChangedAfterParent += (sender, e) => UpdateSizes();
+
         DoubleBufferedPanel panTrack = new()
         {
             BackColor = Settings.Color.TrackBg_Unselected,
@@ -1136,14 +1139,25 @@ public partial class FrmMain : Form
                 panTrackContainer.Top = scrollOffset.Y + top;
                 top += containerHeight + 4;
 
+                Label trackNameLabel = panTrackContainer.Controls.OfType<Label>().FirstOrDefault();
+                int buttonBottom = panTrackContainer.Controls.OfType<Button>()
+                    .Select(button => button.Bottom)
+                    .DefaultIfEmpty(0)
+                    .Max();
+                int headerHeight = Math.Max(45, Math.Max(buttonBottom, trackNameLabel?.Height ?? 0) + 8);
+                if (trackNameLabel is not null)
+                {
+                    trackNameLabel.Top = (headerHeight - trackNameLabel.Height) / 2;
+                }
+
                 foreach (Control child in panTrackContainer.Controls)
                 {
                     if (child is DoubleBufferedPanel panTrack)
                     {
                         panTrack.Left = 0;
-                        panTrack.Top = 45;
+                        panTrack.Top = headerHeight;
                         panTrack.Width = contentWidth;
-                        panTrack.Height = Math.Max(10, panTrackContainer.Height - 45);
+                        panTrack.Height = Math.Max(10, panTrackContainer.Height - headerHeight);
                         panTrack.Invalidate();
                     }
                 }
@@ -1173,9 +1187,27 @@ public partial class FrmMain : Form
 
     }
 
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        if (IsHandleCreated)
+        {
+            MaximizedBounds = Screen.FromHandle(Handle).WorkingArea;
+        }
+    }
+
     private void FrmMain_Load(object sender, EventArgs e)
     {
+        Rectangle workArea = Screen.FromHandle(Handle).WorkingArea;
+        MaximizedBounds = workArea;
 
+        if (WindowState != FormWindowState.Normal) return;
+
+        int width = Math.Min(Bounds.Width, workArea.Width);
+        int height = Math.Min(Bounds.Height, workArea.Height);
+        int left = Math.Clamp(Bounds.Left, workArea.Left, workArea.Right - width);
+        int top = Math.Clamp(Bounds.Top, workArea.Top, workArea.Bottom - height);
+        Bounds = new Rectangle(left, top, width, height);
     }
 
     private void panel1_Paint(object sender, PaintEventArgs e)
