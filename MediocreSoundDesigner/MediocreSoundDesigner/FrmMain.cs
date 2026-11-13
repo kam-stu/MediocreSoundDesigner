@@ -1060,6 +1060,8 @@ public partial class FrmMain : Form
 
     private void UpdateSizes()
     {
+        if (sldPlayhead is null) return;
+
         int availableWidth = panApp.ClientSize.Width;
 
         // align top action panel
